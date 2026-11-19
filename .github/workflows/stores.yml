@@ -1,0 +1,180 @@
+name: Submit to stores
+
+# Sends a published GitHub release to the Chrome Web Store and to addons.mozilla.org
+# for review. release.yml calls it after publishing a release; run it by hand to
+# retry one store. Each store job is skipped until its credentials are configured
+# (see "Store submission" in README.md).
+
+on:
+  workflow_call:
+    inputs:
+      tag:
+        description: Published vX.Y.Z release to submit.
+        type: string
+        required: true
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Published vX.Y.Z release to submit.
+        type: string
+        required: true
+      store:
+        description: Store to submit to.
+        type: choice
+        options: [both, chrome, firefox]
+        default: both
+
+permissions:
+  contents: read
+
+env:
+  NAME: youtube-not-interested
+  ADDON_GUID: youtube-not-interested@icorete.ch
+  CWS_PUBLISHER_ID: 468f1df1-ebbd-4db3-88c0-57a528405c76
+  CWS_ITEM_ID: abhfahbecdeinmikdmhknbklggodmdhd
+  TAG: ${{ inputs.tag }}
+
+jobs:
+  chrome:
+    name: Chrome Web Store
+    if: github.ref == 'refs/heads/main' && inputs.store != 'firefox' && vars.CWS_SERVICE_ACCOUNT != ''
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - name: Download the published Chrome package
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+          [[ "$TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]
+          [[ "$(gh release view "$TAG" --json isDraft --jq .isDraft)" == false ]]
+          gh release download "$TAG" --pattern "$NAME-chrome.zip" --pattern SHA256SUMS
+          grep " $NAME-chrome.zip\$" SHA256SUMS | sha256sum --check -
+          [[ "$(unzip -p "$NAME-chrome.zip" manifest.json | jq -r .version)" == "${TAG#v}" ]]
+      - id: auth
+        uses: google-github-actions/auth@7c6bc770dae815cd3e89ee6cdf493a5fab2cc093 # v3.0.0
+        with:
+          workload_identity_provider: ${{ vars.GCP_WORKLOAD_IDENTITY_PROVIDER }}
+          service_account: ${{ vars.CWS_SERVICE_ACCOUNT }}
+          token_format: access_token
+          access_token_scopes: https://www.googleapis.com/auth/chromewebstore
+          access_token_lifetime: 900s
+          create_credentials_file: false
+          export_environment_variables: false
+      - name: Upload the package and submit it for review
+        env:
+          TOKEN: ${{ steps.auth.outputs.access_token }}
+        run: |
+          set -euo pipefail
+          api=https://chromewebstore.googleapis.com
+          item="publishers/$CWS_PUBLISHER_ID/items/$CWS_ITEM_ID"
+          auth=(-H "Authorization: Bearer $TOKEN")
+
+          curl -sS --fail-with-body "${auth[@]}" -X POST -T "$NAME-chrome.zip" \
+            "$api/upload/v2/$item:upload" -o upload.json || { cat upload.json; exit 1; }
+          state=$(jq -r .uploadState upload.json)
+          for _ in $(seq 30); do
+            [[ "$state" == IN_PROGRESS ]] || break
+            sleep 10
+            curl -sS --fail-with-body "${auth[@]}" "$api/v2/$item:fetchStatus" -o status.json \
+              || { cat status.json; exit 1; }
+            state=$(jq -r .lastAsyncUploadState status.json)
+          done
+          if [[ "$state" != SUCCEEDED ]]; then
+            echo "::error::Chrome Web Store upload ended in state $state"
+            cat upload.json
+            exit 1
+          fi
+          echo "Uploaded version $(jq -r .crxVersion upload.json)"
+
+          curl -sS --fail-with-body "${auth[@]}" -X POST -H "Content-Type: application/json" \
+            -d '{"publishType": "DEFAULT_PUBLISH"}' "$api/v2/$item:publish" -o publish.json \
+            || { cat publish.json; exit 1; }
+          jq . publish.json
+          state=$(jq -r .state publish.json)
+          case "$state" in
+            PENDING_REVIEW | PUBLISHED | STAGED) echo "### Chrome Web Store: $state" >> "$GITHUB_STEP_SUMMARY" ;;
+            *) echo "::error::Chrome Web Store publish returned state $state"; exit 1 ;;
+          esac
+
+  firefox:
+    name: addons.mozilla.org
+    if: github.ref == 'refs/heads/main' && inputs.store != 'chrome' && vars.AMO_SUBMIT == 'true'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: refs/tags/${{ inputs.tag }}
+          persist-credentials: false
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: '24'
+          cache: npm
+      - run: npm ci
+      - name: Download the published Firefox package and source
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+          [[ "$TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]
+          [[ "$(gh release view "$TAG" --json isDraft --jq .isDraft)" == false ]]
+          mkdir -p "$RUNNER_TEMP/store"
+          cd "$RUNNER_TEMP/store"
+          gh release download "$TAG" --pattern "$NAME-firefox-unsigned.zip" \
+            --pattern "$NAME-review-source.zip" --pattern SHA256SUMS
+          grep -E " $NAME-(firefox-unsigned|review-source)\.zip\$" SHA256SUMS | sha256sum --check -
+          unzip -q "$NAME-firefox-unsigned.zip" -d firefox
+          [[ "$(jq -r .version firefox/manifest.json)" == "${TAG#v}" ]]
+          [[ "$(jq -r .browser_specific_settings.gecko.id firefox/manifest.json)" == "$ADDON_GUID" ]]
+      - name: Write version metadata
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+          gh release view "$TAG" --json body --jq .body > "$RUNNER_TEMP/store/notes.md"
+          python3 - "$RUNNER_TEMP/store/notes.md" store/amo-metadata.json "$RUNNER_TEMP/store/metadata.json" <<'PY'
+          import json
+          import re
+          import sys
+
+          notes_path, listing_path, out_path = sys.argv[1:]
+          lines = []
+          for line in open(notes_path, encoding="utf-8").read().splitlines():
+              if line.startswith("## "):
+                  if "download" in line.lower():
+                      break
+                  continue
+              line = re.sub(r"\s*\(\[[0-9a-f]{7,}\]\([^)]*\)\)", "", line)
+              line = re.sub(r"\[([^\]]+)\]\([^)]*\)", r"\1", line)
+              line = re.sub(r"^### (.+)$", r"\1:", line)
+              line = re.sub(r"^\* ", "• ", line).replace("**", "").replace("`", "")
+              lines.append(line)
+          notes = "\n".join(lines).strip() or "Maintenance release."
+
+          version = json.load(open(listing_path, encoding="utf-8"))["version"]
+          metadata = {"version": {
+              "license": version["license"],
+              "approval_notes": version["approval_notes"],
+              "release_notes": {"en-US": notes},
+          }}
+          json.dump(metadata, open(out_path, "w", encoding="utf-8"), ensure_ascii=False, indent=2)
+          print(notes)
+          PY
+      - name: Submit the version for review
+        env:
+          WEB_EXT_API_KEY: ${{ secrets.AMO_API_KEY }}
+          WEB_EXT_API_SECRET: ${{ secrets.AMO_API_SECRET }}
+        run: |
+          set -euo pipefail
+          store="$RUNNER_TEMP/store"
+          npx web-ext sign --source-dir "$store/firefox" --artifacts-dir "$store/signed" \
+            --channel listed --amo-metadata "$store/metadata.json" \
+            --upload-source-code "$store/$NAME-review-source.zip" --approval-timeout 0
+          echo "### addons.mozilla.org: ${TAG#v} submitted for review" >> "$GITHUB_STEP_SUMMARY"
