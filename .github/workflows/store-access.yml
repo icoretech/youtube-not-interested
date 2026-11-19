@@ -1,0 +1,110 @@
+name: Check store access
+
+# Read-only check of the credentials that "Submit to stores" uses. It signs in to
+# the Chrome Web Store through Workload Identity Federation and reads the item's
+# status, and reads the AMO account with the API key. Nothing is uploaded.
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  ADDON_GUID: youtube-not-interested@icorete.ch
+  CWS_PUBLISHER_ID: 468f1df1-ebbd-4db3-88c0-57a528405c76
+  CWS_ITEM_ID: abhfahbecdeinmikdmhknbklggodmdhd
+
+jobs:
+  chrome:
+    name: Chrome Web Store
+    if: github.ref == 'refs/heads/main' && vars.CWS_SERVICE_ACCOUNT != ''
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - id: auth
+        uses: google-github-actions/auth@7c6bc770dae815cd3e89ee6cdf493a5fab2cc093 # v3.0.0
+        with:
+          workload_identity_provider: ${{ vars.GCP_WORKLOAD_IDENTITY_PROVIDER }}
+          service_account: ${{ vars.CWS_SERVICE_ACCOUNT }}
+          token_format: access_token
+          access_token_scopes: https://www.googleapis.com/auth/chromewebstore.readonly
+          access_token_lifetime: 300s
+          create_credentials_file: false
+          export_environment_variables: false
+      - name: Read the item status
+        env:
+          TOKEN: ${{ steps.auth.outputs.access_token }}
+        run: |
+          set -euo pipefail
+          curl -sS --fail-with-body -H "Authorization: Bearer $TOKEN" \
+            "https://chromewebstore.googleapis.com/v2/publishers/$CWS_PUBLISHER_ID/items/$CWS_ITEM_ID:fetchStatus" \
+            -o status.json || { cat status.json; exit 1; }
+          jq 'del(.publicKey)' status.json
+          {
+            echo "### Chrome Web Store access works"
+            echo "- Submitted revision: $(jq -r '.submittedItemRevisionStatus.state // "none"' status.json)"
+            echo "- Published revision: $(jq -r '.publishedItemRevisionStatus.state // "none"' status.json)"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+  firefox:
+    name: addons.mozilla.org
+    if: github.ref == 'refs/heads/main' && vars.AMO_SUBMIT == 'true'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - name: Read the AMO account and add-on
+        env:
+          AMO_API_KEY: ${{ secrets.AMO_API_KEY }}
+          AMO_API_SECRET: ${{ secrets.AMO_API_SECRET }}
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import base64
+          import hashlib
+          import hmac
+          import json
+          import os
+          import time
+          import urllib.error
+          import urllib.parse
+          import urllib.request
+          import uuid
+
+          def b64(data):
+              return base64.urlsafe_b64encode(data).rstrip(b"=")
+
+          def get(path):
+              now = int(time.time())
+              header = b64(json.dumps({"alg": "HS256", "typ": "JWT"}).encode())
+              claims = b64(json.dumps({"iss": os.environ["AMO_API_KEY"], "jti": str(uuid.uuid4()),
+                                       "iat": now, "exp": now + 60}).encode())
+              signature = b64(hmac.new(os.environ["AMO_API_SECRET"].encode(),
+                                       header + b"." + claims, hashlib.sha256).digest())
+              token = (header + b"." + claims + b"." + signature).decode()
+              request = urllib.request.Request("https://addons.mozilla.org/api/v5/" + path,
+                                               headers={"Authorization": "JWT " + token})
+              try:
+                  with urllib.request.urlopen(request) as response:
+                      return response.status, json.load(response)
+              except urllib.error.HTTPError as error:
+                  return error.code, error.read().decode()[:300]
+
+          status, profile = get("accounts/profile/")
+          if status != 200:
+              raise SystemExit(f"::error::AMO rejected the API credentials ({status}): {profile}")
+          guid = os.environ["ADDON_GUID"]
+          status, addon = get("addons/addon/" + urllib.parse.quote(guid) + "/")
+          if status == 200:
+              version = (addon.get("current_version") or {}).get("version")
+              line = f"- {guid}: status {addon['status']}, current version {version}"
+          else:
+              line = f"- {guid}: not on AMO yet ({status})"
+          summary = f"### AMO access works\n- Signed in as {profile['name']}\n{line}\n"
+          print(summary)
+          with open(os.environ["GITHUB_STEP_SUMMARY"], "a", encoding="utf-8") as out:
+              out.write(summary)
+          PY

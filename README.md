@@ -170,6 +170,9 @@ the AMO API credentials, takes the license and reviewer notes from
 and uploads the release's source archive. Listing text and images are edited in
 each store's dashboard.
 
+To check the credentials without uploading anything, run **Check store access**
+on `main`. It reads the Chrome Web Store item status and the AMO account.
+
 After Mozilla approves a listed version, run **Attach signed Firefox XPI**
 on `main` with the same tag. It verifies Mozilla's SHA-256 digest and compares
 the extension contents with the published Firefox ZIP before attaching the XPI.
