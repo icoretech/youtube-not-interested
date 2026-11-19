@@ -1,49 +1,103 @@
 name: Attach signed Firefox XPI
 
+# Attaches Mozilla's signed XPI to a GitHub release once AMO has approved that
+# version. It runs daily for recent releases that don't have the XPI yet; run it
+# by hand with a tag to attach one release now.
+
 on:
+  schedule:
+    - cron: '23 7 * * *'
   workflow_dispatch:
     inputs:
       tag:
-        description: Published GitHub release whose Firefox version Mozilla has approved.
-        required: true
+        description: Release to attach. Leave empty to check every recent release.
+        required: false
         type: string
 
 permissions:
   contents: read
 
+concurrency:
+  group: signed-firefox
+  cancel-in-progress: false
+
+env:
+  NAME: youtube-not-interested
+  ADDON_GUID: youtube-not-interested@icorete.ch
+
 jobs:
   attach:
     if: github.ref == 'refs/heads/main'
     runs-on: ubuntu-26.04
-    timeout-minutes: 5
+    timeout-minutes: 10
     permissions:
       contents: write
     steps:
-      - name: Verify Mozilla's public download and attach it to the release
+      - name: Find releases whose Firefox version Mozilla has approved
+        id: find
         env:
           TAG: ${{ inputs.tag }}
           GH_TOKEN: ${{ github.token }}
           GH_REPO: ${{ github.repository }}
         run: |
           set -euo pipefail
-          [[ "$TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]
-          version=${TAG#v}
-          [[ "$(gh release view "$TAG" --json isDraft --jq .isDraft)" == false ]]
-          cd "$RUNNER_TEMP"
-          curl -fsS "https://addons.mozilla.org/api/v5/addons/addon/youtube-not-interested%40icorete.ch/versions/$version/" -o amo.json
-          jq -e --arg version "$version" '.version == $version and .channel == "listed" and .file.status == "public"' amo.json
-          url=$(jq -er '.file.url' amo.json)
-          digest=$(jq -er '.file.hash' amo.json)
-          [[ "$url" == https://addons.mozilla.org/firefox/downloads/file/*.xpi && "$digest" =~ ^sha256:[0-9a-f]{64}$ ]]
-          curl -fsSL --proto '=https' --proto-redir '=https' "$url" -o youtube-not-interested-firefox.xpi
-          echo "${digest#sha256:}  youtube-not-interested-firefox.xpi" | sha256sum --check -
-          gh release download "$TAG" --pattern youtube-not-interested-firefox-unsigned.zip
-          python3 - <<'PY'
+          if [[ -n "$TAG" ]]; then
+            [[ "$TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]
+            tags=("$TAG")
+          else
+            mapfile -t tags < <(gh release list --exclude-drafts --limit 10 --json tagName --jq '.[].tagName')
+          fi
+          guid=$(jq -rn --arg guid "$ADDON_GUID" '$guid | @uri')
+          ready=()
+          for tag in "${tags[@]}"; do
+            [[ "$tag" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]] || continue
+            if gh release view "$tag" --json assets --jq '.assets[].name' | grep -qx "$NAME-firefox.xpi"; then
+              echo "$tag already has $NAME-firefox.xpi"
+              continue
+            fi
+            code=$(curl -sS -o amo.json -w '%{http_code}' \
+              "https://addons.mozilla.org/api/v5/addons/addon/$guid/versions/${tag#v}/")
+            if [[ "$code" == 200 ]] && jq -e '.channel == "listed" and .file.status == "public"' amo.json >/dev/null; then
+              ready+=("$tag")
+            elif [[ -n "$TAG" ]]; then
+              echo "::error::Mozilla hasn't approved ${tag#v} yet (HTTP $code)."
+              exit 1
+            else
+              echo "$tag: not approved on AMO yet (HTTP $code)"
+            fi
+          done
+          echo "tags=${ready[*]}" >> "$GITHUB_OUTPUT"
+      - name: Verify Mozilla's download and attach it to the release
+        if: steps.find.outputs.tags != ''
+        env:
+          TAGS: ${{ steps.find.outputs.tags }}
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+          guid=$(jq -rn --arg guid "$ADDON_GUID" '$guid | @uri')
+          for TAG in $TAGS; do
+            export TAG
+            version=${TAG#v}
+            [[ "$(gh release view "$TAG" --json isDraft --jq .isDraft)" == false ]]
+            work="$RUNNER_TEMP/$TAG"
+            mkdir -p "$work"
+            cd "$work"
+            curl -fsS "https://addons.mozilla.org/api/v5/addons/addon/$guid/versions/$version/" -o amo.json
+            jq -e --arg version "$version" '.version == $version and .channel == "listed" and .file.status == "public"' amo.json
+            url=$(jq -er '.file.url' amo.json)
+            digest=$(jq -er '.file.hash' amo.json)
+            [[ "$url" == https://addons.mozilla.org/firefox/downloads/file/*.xpi && "$digest" =~ ^sha256:[0-9a-f]{64}$ ]]
+            curl -fsSL --proto '=https' --proto-redir '=https' "$url" -o "$NAME-firefox.xpi"
+            echo "${digest#sha256:}  $NAME-firefox.xpi" | sha256sum --check -
+            gh release download "$TAG" --pattern "$NAME-firefox-unsigned.zip"
+            python3 - <<'PY'
           import json
           import os
           from zipfile import ZipFile
 
-          with ZipFile("youtube-not-interested-firefox.xpi") as signed, ZipFile("youtube-not-interested-firefox-unsigned.zip") as built:
+          name = os.environ["NAME"]
+          with ZipFile(f"{name}-firefox.xpi") as signed, ZipFile(f"{name}-firefox-unsigned.zip") as built:
               def payload(archive):
                   return {entry.filename: archive.read(entry) for entry in archive.infolist()
                           if not entry.is_dir() and not entry.filename.startswith("META-INF/")}
@@ -52,8 +106,10 @@ jobs:
               manifest = json.loads(actual.pop("manifest.json"))
               assert manifest == json.loads(expected.pop("manifest.json"))
               assert manifest["version"] == os.environ["TAG"][1:]
-              assert manifest["browser_specific_settings"]["gecko"]["id"] == "youtube-not-interested@icorete.ch"
+              assert manifest["browser_specific_settings"]["gecko"]["id"] == os.environ["ADDON_GUID"]
               assert actual == expected, "Mozilla package differs from the GitHub release"
               assert "META-INF/mozilla.rsa" in signed.namelist() or "META-INF/cose.sig" in signed.namelist()
           PY
-          gh release upload "$TAG" youtube-not-interested-firefox.xpi
+            gh release upload "$TAG" "$NAME-firefox.xpi"
+            echo "### Attached $NAME-firefox.xpi to $TAG" >> "$GITHUB_STEP_SUMMARY"
+          done

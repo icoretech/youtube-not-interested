@@ -173,9 +173,11 @@ each store's dashboard.
 To check the credentials without uploading anything, run **Check store access**
 on `main`. It reads the Chrome Web Store item status and the AMO account.
 
-After Mozilla approves a listed version, run **Attach signed Firefox XPI**
-on `main` with the same tag. It verifies Mozilla's SHA-256 digest and compares
-the extension contents with the published Firefox ZIP before attaching the XPI.
+Once Mozilla approves a listed version, **Attach signed Firefox XPI** adds
+Mozilla's signed XPI to the release. It runs daily for recent releases that
+don't have one yet; run it on `main` with a tag to attach one sooner. It verifies
+Mozilla's SHA-256 digest and compares the extension contents with the published
+Firefox ZIP before attaching the XPI.
 
 ## Build for AMO reviewers
 
