@@ -30,6 +30,12 @@
       "preset": "recommended"
     }
   },
+  "overrides": [
+    {
+      "includes": ["manifest/base.json"],
+      "formatter": { "enabled": false }
+    }
+  ],
   "vcs": {
     "enabled": true,
     "clientKind": "git",
