@@ -8,8 +8,9 @@
   "dependencyDashboard": { "enabled": true },
   "labels": ["dependencies"],
   "platformAutomerge": false,
+  "automergeStrategy": "squash",
   "prConcurrentLimit": 5,
-  "lockFileMaintenance": { "enabled": true },
+  "lockFileMaintenance": { "enabled": true, "automerge": true },
   "packageRules": [
     {
       "matchManagers": ["github-actions"],
