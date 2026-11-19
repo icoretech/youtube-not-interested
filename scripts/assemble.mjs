@@ -1,13 +1,13 @@
 // Lays out one unpacked extension per browser from the shared Vite bundle:
-//   dist/firefox -> load via about:debugging (LibreWolf, Firefox)
 //   dist/chrome  -> load via chrome://extensions ("Load unpacked")
+//   dist/firefox -> load via about:debugging (Firefox, LibreWolf)
 import { cp, mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const rootDir = join(dirname(fileURLToPath(import.meta.url)), "..");
 const bundleDir = join(rootDir, "dist/.bundle");
-const targets = ["firefox", "chrome"];
+const targets = ["chrome", "firefox"];
 
 const readJson = async (path) => JSON.parse(await readFile(path, "utf8"));
 const base = await readJson(join(rootDir, "manifest/base.json"));

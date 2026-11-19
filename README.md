@@ -51,7 +51,7 @@ Each release includes standalone downloads:
   put all three ZIPs and the release's `SHA256SUMS` in the same directory and
   run `shasum -a 256 -c SHA256SUMS`.
 
-## Install from source in LibreWolf or Firefox
+## Install from source
 
 From the repository root, use Node.js 24 or newer and npm:
 
@@ -110,8 +110,8 @@ npm run web-ext:lint
 ```
 
 `npm run biome:ci` checks formatting, lint, and TypeScript. `npm run package`
-builds both browsers and writes their ZIPs to `artifacts/firefox/` and
-`artifacts/chrome/`. `scripts/make-icons.sh` rebuilds the icons from
+builds both browsers and writes their ZIPs to `artifacts/chrome/` and
+`artifacts/firefox/`. `scripts/make-icons.sh` rebuilds the icons from
 `assets/brand/logo-source.png` (requires ImageMagick 7).
 
 If YouTube changes its markup, start with the

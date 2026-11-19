@@ -1,7 +1,7 @@
 import { defineConfig } from "vite";
 
 // Bundles the content script into a single IIFE. scripts/assemble.mjs then
-// lays out dist/firefox and dist/chrome with their own manifests.
+// lays out dist/chrome and dist/firefox with their own manifests.
 // `vite build --mode debug` keeps the diagnostics reporter (see src/content/debug.ts).
 export default defineConfig(({ mode }) => ({
   define: {
@@ -19,7 +19,7 @@ export default defineConfig(({ mode }) => ({
       output: {
         entryFileNames: "content.js",
         format: "iife",
-        name: "YouTubeNotInterestedRightClick",
+        name: "NotInterestedContentScript",
       },
     },
   },
