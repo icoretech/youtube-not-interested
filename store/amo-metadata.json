@@ -1,0 +1,33 @@
+{
+  "categories": [
+    "photos-music-videos"
+  ],
+  "summary": {
+    "en-US": "Right-click a YouTube thumbnail to mark the video \"Not interested\": one click instead of three, with YouTube's own Undo. Any language, no permissions, no tracking.",
+    "it": "Clic destro su una miniatura di YouTube per segnare il video come \"Non mi interessa\": un clic invece di tre, con l'Annulla di YouTube. Qualsiasi lingua, nessun permesso, nessun tracciamento."
+  },
+  "description": {
+    "en-US": "Getting rid of a video you don't want in your YouTube recommendations takes three clicks: ⋮, then \"Not interested\", then back to scrolling. This extension makes it one.\n\n**Right-click a thumbnail** and the video is marked \"Not interested\", exactly as if you had used YouTube's own menu. YouTube replaces the card with its usual \"Video removed\" panel, so **Undo** is one click away if you change your mind.\n\n• Only thumbnails are taken over: right-clicking a title, a channel name or anything else still opens the normal context menu.\n• Shift + right-click on a thumbnail opens the normal context menu too.\n• Works in any YouTube language.\n• If a video has no \"Not interested\" option (search results, for example), a short note appears and nothing is clicked.\n\n**Private by design**\nThe extension runs only on youtube.com. It declares no permissions, makes no network requests of its own, stores nothing, and has no account, analytics or tracking.\n\nFree and open source (MIT).\n\nNot Interested is an independent project and is not affiliated with YouTube or Google.",
+    "it": "Togliere un video che non vuoi dai consigli di YouTube richiede tre clic: ⋮, poi \"Non mi interessa\", poi di nuovo a scorrere. Con questa estensione ne basta uno.\n\n**Clic destro su una miniatura** e il video viene segnato come \"Non mi interessa\", esattamente come dal menu di YouTube. YouTube sostituisce la scheda con il solito riquadro \"Video rimosso\", quindi **Annulla** è a un clic di distanza se cambi idea.\n\n• Solo le miniature cambiano comportamento: il clic destro su un titolo, sul nome di un canale o altrove apre il normale menu contestuale.\n• Maiusc + clic destro su una miniatura apre anch'esso il normale menu contestuale.\n• Funziona con YouTube in qualsiasi lingua.\n• Se un video non ha l'opzione \"Non mi interessa\" (per esempio nei risultati di ricerca), compare un breve avviso e non viene cliccato nulla.\n\n**Privacy prima di tutto**\nL'estensione funziona solo su youtube.com. Non chiede permessi, non fa richieste di rete proprie, non salva niente e non ha account, analytics né tracciamento.\n\nGratuita e open source (MIT).\n\nNot Interested è un progetto indipendente e non è affiliato a YouTube o Google."
+  },
+  "homepage": {
+    "en-US": "https://icorete.ch",
+    "it": "https://icorete.ch"
+  },
+  "support_email": {
+    "en-US": "public@icorete.ch"
+  },
+  "version": {
+    "license": "MIT",
+    "release_notes": {
+      "en-US": "First public release. Right-click a video thumbnail on youtube.com to mark it \"Not interested\"."
+    },
+    "approval_notes": "content.js is bundled (not minified) with Vite from the TypeScript sources in the attached source archive. To rebuild: Node.js 24+, then `npm ci && npm run build`; the add-on is output to dist/firefox. Full instructions are in README.md, section \"Build for AMO reviewers\".\n\nHow it works: the content script runs on https://www.youtube.com/* only, in the default isolated world. It listens for `contextmenu` in the capture phase. When the right-click lands on a video thumbnail, it cancels the native menu, opens that video's own ⋮ menu by dispatching pointer/mouse events and calling click() on YouTube's button, finds the \"Not interested\" entry (by its SVG icon path, by the icon type in YouTube's older menu renderers read through wrappedJSObject, by its exact label, or by its position above \"Don't recommend channel\"), and clicks it. YouTube itself then removes the card and offers Undo. Right-clicks anywhere else, or with Shift/Alt/Cmd held, are left alone. It makes no network requests, uses no storage and declares no permissions."
+  },
+  "tags": [
+    "youtube"
+  ],
+  "support_url": {
+    "en-US": "https://github.com/icoretech/youtube-not-interested/issues"
+  }
+}

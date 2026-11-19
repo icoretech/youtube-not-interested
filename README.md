@@ -28,7 +28,30 @@ language; the screenshots show YouTube in Italian.
 
 </details>
 
-## Install in LibreWolf or Firefox
+## Download a release
+
+Get the [latest release](https://github.com/icoretech/youtube-not-interested/releases/latest).
+Each release includes standalone downloads:
+
+- **[Unsigned Firefox ZIP](https://github.com/icoretech/youtube-not-interested/releases/latest/download/youtube-not-interested-firefox-unsigned.zip)**
+  — in a LibreWolf profile that accepts unsigned add-ons
+  (`xpinstall.signatures.required` set to `false` in `about:config`), open
+  `about:addons`, click the gear, choose **Install Add-on From File**, and
+  select the downloaded ZIP directly. It stays installed after a restart.
+  Standard Firefox requires the Mozilla-signed
+  `youtube-not-interested-firefox.xpi`, attached to a release once Mozilla
+  approves it. To test the unsigned ZIP there, open
+  `about:debugging#/runtime/this-firefox` and select the ZIP with
+  **Load Temporary Add-on**.
+- **[Chrome ZIP](https://github.com/icoretech/youtube-not-interested/releases/latest/download/youtube-not-interested-chrome.zip)**
+  — extract the archive to a folder you will keep. In Chrome's extensions page,
+  enable **Developer mode**, choose **Load unpacked**, and select that folder.
+- **[Reviewer source](https://github.com/icoretech/youtube-not-interested/releases/latest/download/youtube-not-interested-review-source.zip)**
+  — rebuild the extension with the instructions below. To verify the downloads,
+  put all three ZIPs and the release's `SHA256SUMS` in the same directory and
+  run `shasum -a 256 -c SHA256SUMS`.
+
+## Install from source in LibreWolf or Firefox
 
 From the repository root, use Node.js 24 or newer and npm:
 
@@ -115,6 +138,27 @@ thumbnail. The collector prints each right-click and appends it to
 "Not interested" was matched. New icon paths go in
 [`menu.ts`](src/youtube/menu.ts). Run `npm run build` again before regular use:
 production builds contain no debug code.
+
+## Releases
+
+CI runs on pull requests and pushes to `main` using GitHub-hosted Linux runners.
+Merging the release-please version PR creates a version tag and a draft
+release. The release workflow checks out that tag, runs the tests, builds and
+validates the packages, and publishes the draft with its downloads. To retry
+an interrupted draft, run the **Release** workflow on `main` with its tag.
+Mozilla signing and store submissions are separate steps.
+
+After Mozilla approves a listed version, run **Attach signed Firefox XPI**
+on `main` with the same tag. It verifies Mozilla's SHA-256 digest and compares
+the extension contents with the published Firefox ZIP before attaching the XPI.
+
+## Build for AMO reviewers
+
+From the source archive root, run `npm ci` followed by `npm run build` with
+Node.js 24 or newer. The lockfile pins the dependencies. Vite produces an
+unminified `content.js`, and the build assembles the Firefox manifest, script,
+stylesheet, and icons in `dist/firefox/`. `npm run package:review-source`
+creates that archive from this repository.
 
 ## License
 

@@ -1,0 +1,59 @@
+name: Attach signed Firefox XPI
+
+on:
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Published GitHub release whose Firefox version Mozilla has approved.
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  attach:
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    permissions:
+      contents: write
+    steps:
+      - name: Verify Mozilla's public download and attach it to the release
+        env:
+          TAG: ${{ inputs.tag }}
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+          [[ "$TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]
+          version=${TAG#v}
+          [[ "$(gh release view "$TAG" --json isDraft --jq .isDraft)" == false ]]
+          cd "$RUNNER_TEMP"
+          curl -fsS "https://addons.mozilla.org/api/v5/addons/addon/youtube-not-interested%40icorete.ch/versions/$version/" -o amo.json
+          jq -e --arg version "$version" '.version == $version and .channel == "listed" and .file.status == "public"' amo.json
+          url=$(jq -er '.file.url' amo.json)
+          digest=$(jq -er '.file.hash' amo.json)
+          [[ "$url" == https://addons.mozilla.org/firefox/downloads/file/*.xpi && "$digest" =~ ^sha256:[0-9a-f]{64}$ ]]
+          curl -fsSL --proto '=https' --proto-redir '=https' "$url" -o youtube-not-interested-firefox.xpi
+          echo "${digest#sha256:}  youtube-not-interested-firefox.xpi" | sha256sum --check -
+          gh release download "$TAG" --pattern youtube-not-interested-firefox-unsigned.zip
+          python3 - <<'PY'
+          import json
+          import os
+          from zipfile import ZipFile
+
+          with ZipFile("youtube-not-interested-firefox.xpi") as signed, ZipFile("youtube-not-interested-firefox-unsigned.zip") as built:
+              def payload(archive):
+                  return {entry.filename: archive.read(entry) for entry in archive.infolist()
+                          if not entry.is_dir() and not entry.filename.startswith("META-INF/")}
+
+              actual, expected = payload(signed), payload(built)
+              manifest = json.loads(actual.pop("manifest.json"))
+              assert manifest == json.loads(expected.pop("manifest.json"))
+              assert manifest["version"] == os.environ["TAG"][1:]
+              assert manifest["browser_specific_settings"]["gecko"]["id"] == "youtube-not-interested@icorete.ch"
+              assert actual == expected, "Mozilla package differs from the GitHub release"
+              assert "META-INF/mozilla.rsa" in signed.namelist() or "META-INF/cose.sig" in signed.namelist()
+          PY
+          gh release upload "$TAG" youtube-not-interested-firefox.xpi

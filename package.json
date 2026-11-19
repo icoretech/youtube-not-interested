@@ -15,7 +15,9 @@
     "biome:ci": "biome check . && tsc -p tsconfig.json --noEmit",
     "test": "vitest run",
     "web-ext:lint": "web-ext lint --source-dir dist/firefox",
-    "package": "npm run build && web-ext build --overwrite-dest --source-dir dist/firefox --artifacts-dir artifacts/firefox && web-ext build --overwrite-dest --source-dir dist/chrome --artifacts-dir artifacts/chrome"
+    "package": "npm run build && web-ext build --overwrite-dest --source-dir dist/firefox --artifacts-dir artifacts/firefox && web-ext build --overwrite-dest --source-dir dist/chrome --artifacts-dir artifacts/chrome",
+    "package:review-source": "npm run build && mkdir -p artifacts/source && rm -f artifacts/source/youtube-not-interested-review-source-$npm_package_version.zip && zip -q -X -r artifacts/source/youtube-not-interested-review-source-$npm_package_version.zip README.md LICENSE package.json package-lock.json vite.config.ts tsconfig.json scripts/assemble.mjs src manifest assets/icons assets/banner.webp assets/screenshots -x \"*.DS_Store\"",
+    "sign:amo": "npm run package && npm run package:review-source && web-ext sign --source-dir dist/firefox --channel listed --amo-metadata store/amo-metadata.json --upload-source-code artifacts/source/youtube-not-interested-review-source-$npm_package_version.zip --approval-timeout 0 --artifacts-dir artifacts/firefox"
   },
   "devDependencies": {
     "@biomejs/biome": "^2.6.8",
