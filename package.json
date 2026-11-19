@@ -1,0 +1,29 @@
+{
+  "name": "youtube-not-interested",
+  "private": true,
+  "version": "0.2.0",
+  "type": "module",
+  "license": "MIT",
+  "engines": {
+    "node": ">=24"
+  },
+  "scripts": {
+    "build": "vite build && node scripts/assemble.mjs",
+    "build:debug": "vite build --mode debug && node scripts/assemble.mjs",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "lint": "biome check --write . && tsc -p tsconfig.json --noEmit",
+    "biome:ci": "biome check . && tsc -p tsconfig.json --noEmit",
+    "test": "vitest run",
+    "web-ext:lint": "web-ext lint --source-dir dist/firefox",
+    "package": "npm run build && web-ext build --overwrite-dest --source-dir dist/firefox --artifacts-dir artifacts/firefox && web-ext build --overwrite-dest --source-dir dist/chrome --artifacts-dir artifacts/chrome"
+  },
+  "devDependencies": {
+    "@biomejs/biome": "^2.6.8",
+    "@types/node": "^26.6.6",
+    "jsdom": "^31.0.1",
+    "typescript": "^7.0.2",
+    "vite": "^8.3.8",
+    "vitest": "^5.1.1",
+    "web-ext": "^10.8.0"
+  }
+}

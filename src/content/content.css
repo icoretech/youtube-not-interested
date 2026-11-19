@@ -1,0 +1,28 @@
+/* While the extension drives a ⋮ menu, keep YouTube's popup invisible so the
+   right-click feels instant. The popup still works; it is only transparent. */
+html[data-ynir-busy] ytd-popup-container,
+html[data-ynir-busy] yt-contextual-sheet-layout,
+html[data-ynir-busy] yt-sheet-view-model {
+  opacity: 0 !important;
+}
+
+/* Immediate feedback on the card being dismissed, until YouTube replaces it. */
+[data-ynir-pending] :is(yt-thumbnail-view-model, ytd-thumbnail, a#thumbnail) {
+  opacity: 0.4;
+  transition: opacity 120ms ease-out;
+}
+
+#ynir-toast {
+  position: fixed;
+  left: 24px;
+  bottom: 24px;
+  z-index: 2147483647;
+  max-width: 360px;
+  padding: 12px 16px;
+  border-radius: 8px;
+  background: #0f0f0f;
+  color: #fff;
+  font: 400 14px/20px Roboto, Arial, sans-serif;
+  box-shadow: 0 4px 16px rgb(0 0 0 / 0.3);
+  pointer-events: none;
+}

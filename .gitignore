@@ -1,0 +1,17 @@
+node_modules/
+dist/
+artifacts/
+web-ext-artifacts/
+coverage/
+*.tsbuildinfo
+*.xpi
+*.crx
+*.zip
+
+# Workstation and agent scratch files
+.DS_Store
+*.log
+.sisyphus/
+.claude/
+.codex/
+debug-reports.ndjson
