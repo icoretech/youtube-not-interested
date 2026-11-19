@@ -74,6 +74,18 @@ jobs:
           item="publishers/$CWS_PUBLISHER_ID/items/$CWS_ITEM_ID"
           auth=(-H "Authorization: Bearer $TOKEN")
 
+          # The store rejects a new package while an earlier one is still in review.
+          curl -sS --fail-with-body "${auth[@]}" "$api/v2/$item:fetchStatus" -o before.json \
+            || { cat before.json; exit 1; }
+          pending=$(jq -r 'select(.submittedItemRevisionStatus.state == "PENDING_REVIEW")
+            | [.submittedItemRevisionStatus.distributionChannels[]?.crxVersion] | first // "a version"' before.json)
+          if [[ -n "$pending" ]]; then
+            message="Chrome Web Store is still reviewing $pending. Run Submit to stores for $TAG with store chrome once that review is done."
+            echo "::warning::$message"
+            echo "### Chrome Web Store: skipped. $message" >> "$GITHUB_STEP_SUMMARY"
+            exit 0
+          fi
+
           curl -sS --fail-with-body "${auth[@]}" -X POST -T "$NAME-chrome.zip" \
             "$api/upload/v2/$item:upload" -o upload.json || { cat upload.json; exit 1; }
           state=$(jq -r .uploadState upload.json)
