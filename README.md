@@ -146,7 +146,29 @@ Merging the release-please version PR creates a version tag and a draft
 release. The release workflow checks out that tag, runs the tests, builds and
 validates the packages, and publishes the draft with its downloads. To retry
 an interrupted draft, run the **Release** workflow on `main` with its tag.
-Mozilla signing and store submissions are separate steps.
+Dependency updates alone don't start a release: they ship with the next
+feature or fix.
+
+After publishing, the release workflow runs **Submit to stores**, which sends
+the published packages to the Chrome Web Store and addons.mozilla.org for
+review. To retry one store, run **Submit to stores** on `main` with the tag.
+
+### Store submission
+
+Each store job is skipped until its repository settings exist:
+
+| Store | Variables | Secrets |
+| --- | --- | --- |
+| Chrome Web Store | `GCP_WORKLOAD_IDENTITY_PROVIDER`, `CWS_SERVICE_ACCOUNT` | none |
+| addons.mozilla.org | `AMO_SUBMIT` set to `true` | `AMO_API_KEY`, `AMO_API_SECRET` |
+
+The Chrome job signs in with GitHub's OIDC token through Workload Identity
+Federation, so no Google key is stored. The service account must be the one
+added under **Account** in the Chrome Web Store dashboard. The Firefox job uses
+the AMO API credentials, takes the license and reviewer notes from
+`store/amo-metadata.json`, uses the GitHub release notes as the version notes,
+and uploads the release's source archive. Listing text and images are edited in
+each store's dashboard.
 
 After Mozilla approves a listed version, run **Attach signed Firefox XPI**
 on `main` with the same tag. It verifies Mozilla's SHA-256 digest and compares

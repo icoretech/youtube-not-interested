@@ -74,3 +74,13 @@ jobs:
           fi
           gh release upload "$TAG" youtube-not-interested-chrome.zip youtube-not-interested-firefox-unsigned.zip youtube-not-interested-review-source.zip SHA256SUMS --clobber
           gh release edit "$TAG" --draft=false
+
+  stores:
+    needs: [prepare, publish]
+    uses: ./.github/workflows/stores.yml
+    permissions:
+      contents: read
+      id-token: write
+    with:
+      tag: ${{ needs.prepare.outputs.tag }}
+    secrets: inherit
