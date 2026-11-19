@@ -15,3 +15,12 @@ coverage/
 .claude/
 .codex/
 debug-reports.ndjson
+
+# Design captures and store submission materials stay local.
+/design/
+/store/*
+!/store/amo-metadata.json
+!/store/privacy-policy.md
+/scripts/render-screenshots.sh
+/assets/brand/*
+!/assets/brand/logo-source.png
