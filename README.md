@@ -28,6 +28,13 @@ language; the screenshots show YouTube in Italian.
 
 </details>
 
+## Install
+
+- **Chrome, Edge, Brave, and other Chromium browsers:** install Not Interested
+  from the
+  [Chrome Web Store](https://chromewebstore.google.com/detail/abhfahbecdeinmikdmhknbklggodmdhd).
+- **Firefox:** Not Interested is in review on addons.mozilla.org.
+
 ## Download a release
 
 Get the [latest release](https://github.com/icoretech/youtube-not-interested/releases/latest).
