@@ -33,7 +33,8 @@ language; the screenshots show YouTube in Italian.
 - **Chrome, Edge, Brave, and other Chromium browsers:** install Not Interested
   from the
   [Chrome Web Store](https://chromewebstore.google.com/detail/abhfahbecdeinmikdmhknbklggodmdhd).
-- **Firefox:** Not Interested is in review on addons.mozilla.org.
+- **Firefox:** install Not Interested from
+  [addons.mozilla.org](https://addons.mozilla.org/firefox/addon/not-interested-right-click-for/).
 
 ## Download a release
 
